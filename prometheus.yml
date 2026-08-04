@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: 'webx-metrics-pro'
+    metrics_path: '/metrics'
+    scheme: 'http'
+    static_configs:
+      - targets: ['app:3000']
+    
+    # 🔒 Bezpieczna autoryzacja za pomocą tokena Bearer
+    # Musi zgadzać się ze zmienną środowiskową PROM_TOKEN w aplikacji
+    bearer_token: 'secret_prom_token'

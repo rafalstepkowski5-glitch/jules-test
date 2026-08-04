@@ -1,0 +1,17 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: WAF Alerts
+    folder: Alerts
+    interval: 1m
+    rules:
+      - uid: waf_blocks_high
+        title: High WAF Blocks Detected
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: loki-default
+            model:
+              expr: sum(rate({job="caddy_waf"} | json | status="403" [1m])) > 10
+        noDataState: OK
+        execErrState: Alerting

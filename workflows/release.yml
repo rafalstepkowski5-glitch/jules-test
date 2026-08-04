@@ -1,0 +1,116 @@
+name: Secure Release SLSA3 + SBOM + Cosign
+
+on:
+  push:
+    tags: ["v*"] # Uruchamia się automatycznie przy wypchnięciu tagu wersji, np. v2.0.0
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write      # Wymagane do bezkluczykowego podpisywania Cosign (OIDC)
+  packages: write      # Wymagane do publikowania obrazów w GitHub Container Registry (GHCR)
+  security-events: write
+
+jobs:
+  security:
+    name: Security Gate (Audit & License Check)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit & cargo-deny
+        run: cargo install cargo-audit cargo-deny --locked
+
+      # 1. Kontrola znanych podatności w zależnościach (Cargo.toml)
+      - name: Run Cargo Audit
+        run: cargo audit --deny warnings
+
+      # 2. Blokada szkodliwych licencji i duplikatów (np. GPL-3.0) na bazie deny.toml
+      - name: Run Cargo Deny Check
+        run: cargo deny check advisories bans licenses sources
+
+      # 3. Skanowanie statyczne kodu źródłowego przy użyciu Trivy (FS Scan)
+      - name: Run Trivy Static FS Scan
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+
+  build-and-sign:
+    name: Build, Scan Container & Sign
+    needs: security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Logowanie do GitHub Container Registry (GHCR)
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Generowanie metadanych dla obrazu Docker
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+
+      # 4. Instalacja generatora SBOM i narzędzia Cosign
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      # 5. Generowanie specyfikacji SBOM w formacie CycloneDX JSON
+      - name: Generate CycloneDX SBOM
+        run: cargo cyclonedx --format json --output-pattern "bom.json"
+
+      # 6. Budowanie bezpiecznego obrazu Distroless i eksport do środowiska testowego
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false # Nie wysyłamy jeszcze, dopóki Trivy go nie zweryfikuje
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # 7. Skanowanie gotowego obrazu kontenera za pomocą Trivy
+      - name: Run Trivy Image Scan
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}
+          scan-type: 'image'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1' # Przerwij potok, jeśli wykryto krytyczne podatności w obrazie
+
+      # 8. Wypchnięcie bezpiecznego i przeskanowanego obrazu do GHCR
+      - name: Push Verified Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # 9. Bezkluczykowe podpisywanie obrazu Cosign (OIDC)
+      - name: Sign Docker Image with Cosign
+        run: |
+          cosign sign --yes "ghcr.io/${{ github.repository }}:${{ steps.meta.outputs.version }}"
+        env:
+          COSIGN_EXPERIMENTAL: "1"

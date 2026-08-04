@@ -1,0 +1,18 @@
+{
+  "title": "WAF Shield",
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "WAF Blocks Over Time",
+      "targets": [
+        {
+          "expr": "sum by (uri) (rate({job=\"caddy_waf\"} | json | status=\"403\"[1m]))",
+          "refId": "A"
+        }
+      ],
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 }
+    }
+  ],
+  "schemaVersion": 38
+}

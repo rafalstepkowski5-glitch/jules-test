@@ -1,0 +1,31 @@
+:3000 {
+  encode gzip
+
+  @metrics {
+    path /metrics*
+  }
+
+  route {
+    respond /healthz 200
+    reverse_proxy /static/* app:3000
+    reverse_proxy /login app:3000
+    reverse_proxy /api/* app:3000
+    reverse_proxy /metrics app:3000
+    reverse_proxy / app:3000
+  }
+
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  }
+
+  route / {
+    @block {
+      header_regexp User-Agent (sqlmap|nuclei|masscan|fuzzer|zmEu|nikto|??? )
+    }
+    respond @block 403
+  }
+}

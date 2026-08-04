@@ -1,0 +1,111 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - JWT_SECRET=change-this-to-64-chars-min-in-prod-1234567890123456
+      - PROM_TOKEN=secret_prom_token
+      - ADMIN_PASS=admin123
+      - APP_ENV=production
+      - DATABASE_URL=sqlite://data.db?mode=rwc
+    volumes:
+      - app_data:/app
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./Caddyfile.loki:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_logs:/var/log/caddy
+    depends_on:
+      - app
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    depends_on:
+      - app
+
+  backup-cron:
+    image: alpine:3.18
+    restart: unless-stopped
+    volumes:
+      - app_data:/app/data:ro
+      - ./backups:/app/backups
+      - ./backup-sqlite-v3.sh:/app/backup-sqlite-v3.sh:ro
+      - ./Makefile:/app/Makefile
+    working_dir: /app
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - NOTIFICATION_EMAIL=${NOTIFICATION_EMAIL:-}
+      - FROM_EMAIL=${FROM_EMAIL:-}
+      - HOSTNAME=WebX-Production-Fortress
+      - DATABASE_PATH=/app/data/data.db
+      - BACKUP_DIR=/app/backups
+      - BACKUPS_TO_KEEP=7
+    command: >
+      /bin/sh -c "apk add --no-cache make bash sqlite curl python3 && echo '0 * * * * make backup' > /etc/crontabs/root && crond -f"
+    depends_on:
+      - app
+
+  loki:
+    image: grafana/loki:latest
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    restart: unless-stopped
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - caddy_logs:/var/log/caddy:ro
+    command: -config.file=/etc/promtail/config.yml
+
+  grafana:
+    image: grafana/grafana-oss:10.2.0
+    ports:
+      - "4000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin_secret_999}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # --- AUTOMATYCZNE REGÓŁY ALARMOWE ---
+      - ./grafana-alerts.yaml:/etc/grafana/provisioning/alerting/rules.yaml:ro
+      # --- AUTOMATYCZNE ŹRÓDŁO DANYCH LOKI ---
+      - ./grafana-datasource.yaml:/etc/grafana/provisioning/datasources/datasource.yaml:ro
+      # --- AUTOMATYCZNY IMPORT PANELU WAF SHIELD ---
+      - ./grafana-dashboard-provider.yaml:/etc/grafana/provisioning/dashboards/provider.yaml:ro
+      - ./dashboard.json:/var/lib/grafana/dashboards/dashboard.json:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+volumes:
+  app_data:
+  caddy_data:
+  caddy_config:
+  caddy_logs:
+  prometheus_data:
+  loki_data:
+  grafana_data:

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebX Metrics Pro - Dashboard</title>
+    <style>
+        body { font-family: sans-serif; background: #0b1220; color: #fff; padding: 20px; }
+        .chart { background: #1e293b; padding: 10px; margin-bottom: 20px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>WebX Metrics Pro - Dashboard</h1>
+    <div>Welcome, {{ username }} (Role: {{ role }})</div>
+    <button onclick="logout()">Logout</button>
+    
+    {% if role == "admin" %}
+    <div>
+        <h2>Export Data</h2>
+        <button onclick="exportData('txt')">Export TXT</button>
+        <button onclick="exportData('md')">Export MD</button>
+        <button onclick="exportData('pdf')">Export PDF</button>
+    </div>
+    {% endif %}
+
+    <h2>CPU</h2>
+    <div class="chart">{{ cpu_chart|safe }}</div>
+    <h2>Memory</h2>
+    <div class="chart">{{ mem_chart|safe }}</div>
+    
+    <script>
+        async function logout() {
+            const csrf = document.cookie.split('; ').find(r=>r.startsWith('csrf_token='))?.split('=')[1];
+            await fetch('/api/auth/logout', { method: 'POST', headers: { 'X-CSRF-Token': csrf || '' } });
+            location.href = '/login';
+        }
+
+        async function exportData(format) {
+            const csrf = document.cookie.split('; ').find(r=>r.startsWith('csrf_token='))?.split('=')[1];
+            try {
+                const response = await fetch(`/api/export/${format}`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-Token': csrf || ''
+                    }
+                });
+                if (!response.ok) {
+                    alert('Export failed: ' + response.statusText);
+                    return;
+                }
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `export.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Export failed: ' + err);
+            }
+        }
+    </script>
+</body>
+</html>
