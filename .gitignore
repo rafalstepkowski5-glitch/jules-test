@@ -3,6 +3,7 @@
 # Env variables
 .env*
 !.env.example
+secrets/
 
 # Compiled output
 /dist

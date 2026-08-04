@@ -1,0 +1,6 @@
+[bans]
+deny = [
+  { name = "openssl" },
+  { name = "openssl-sys" },
+  { name = "native-tls" }
+]

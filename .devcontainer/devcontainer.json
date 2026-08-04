@@ -1,0 +1,23 @@
+{
+  "name": "WebX Metrics Pro Secured",
+  "build": {
+    "dockerfile": "Dockerfile.txt",
+    "context": ".."
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "serayuzgur.crates",
+        "vadimcn.vscode-lldb",
+        "ms-vscode.cpptools"
+      ]
+    }
+  },
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash"
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev musl-tools unzip sqlcipher && rustup target add x86_64-unknown-linux-musl && cargo install cargo-audit cargo-deny cargo-cyclonedx cargo-auditable",
+  "forwardPorts": [8080],
+  "remoteUser": "root"
+}
