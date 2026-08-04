@@ -1,11 +1,7 @@
 {
   "name": "WebX Metrics Pro - Rust + SQLCipher",
   "image": "mcr.microsoft.com/devcontainers/rust:1",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest"
-    }
-  },
+  "features": {},
   "customizations": {
     "vscode": {
       "extensions": [
