@@ -26,6 +26,12 @@ async fn main() -> anyhow::Result<()> {
     if jwt_secret.trim().len() < 32 {
         anyhow::bail!("Zagrożenie bezpieczeństwa: JWT_SECRET musi mieć co najmniej 32 znaki");
     }
+    // Require an explicit admin password in environment for initial user creation
+    let admin_pass = std::env::var("ADMIN_PASS")
+        .map_err(|_| anyhow::anyhow!("Krytyczny błąd: Zmienna środowiskowa ADMIN_PASS nie została ustawiona! Ustaw silne hasło administracyjne."))?;
+    if admin_pass.trim().len() < 8 {
+        anyhow::bail!("Zagrożenie bezpieczeństwa: ADMIN_PASS musi mieć co najmniej 8 znaków");
+    }
     let _prom_token = std::env::var("PROM_TOKEN")
         .map_err(|_| anyhow::anyhow!("Krytyczny błąd: Zmienna środowiskowa PROM_TOKEN nie została ustawiona!"))?;
 
