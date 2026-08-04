@@ -4,11 +4,3 @@ allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0"]
 [advisories]
 # no ignored advisories by default; any advisory will fail the check
 ignore = []
-
-[bans]
-# crates to block unconditionally
-crates = []
-
-[sources]
-# blocked sources (git patterns) if needed
-sources = []
