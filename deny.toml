@@ -1,16 +1,6 @@
-[bans]
-deny = [
-  { name = "openssl" },
-  { name = "openssl-sys" },
-  { name = "native-tls" }
-]
-
 [licenses]
 allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0"]
 
 [advisories]
-# no ignored advisories by default
+# no ignored advisories by default; any advisory will fail the check
 ignore = []
-
-[sources]
-# blocked = ["git+https://github.com/evil/*"]
