@@ -3,7 +3,9 @@
 # Env variables
 .env*
 !.env.example
+.env
 secrets/
+data/
 
 # Compiled output
 /dist
@@ -12,6 +14,8 @@ secrets/
 /bazel-out
 target/
 *.db
+*.db-shm
+*.db-wal
 
 # Node
 node_modules/
