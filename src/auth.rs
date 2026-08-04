@@ -1,7 +1,7 @@
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::{SaltString, rand_core::OsRng}};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey};
+use jsonwebtoken::{encode, decode, Header, Validation, EncodingKey, DecodingKey, Algorithm};
 use uuid::Uuid;
 
 static SECRET: Lazy<String> = Lazy::new(|| {
@@ -33,6 +33,24 @@ pub fn create_refresh_token(u: &str) -> (String, String) {
     (encode(&Header::default(), &c, &EncodingKey::from_secret(SECRET.as_bytes())).unwrap(), jti)
 }
 pub fn verify_jwt(t: &str) -> Result<Claims, String> {
-    let mut v = Validation::default(); v.set_issuer(&["webx-metrics-pro"]); v.set_audience(&["webx-client"]);
+    let mut v = Validation::new(Algorithm::HS256);
+    v.set_issuer(&["webx-metrics-pro"]);
+    v.set_audience(&["webx-client"]);
     decode::<Claims>(t, &DecodingKey::from_secret(SECRET.as_bytes()), &v).map(|d| d.claims).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn jwt_roundtrip() {
+        // ensure secret is set before using the module
+        env::set_var("JWT_SECRET", "abcdefghijklmnopqrstuvwxyz012345");
+        let token = create_access_token("testuser", "admin");
+        let claims = verify_jwt(&token).expect("token should validate");
+        assert_eq!(claims.sub, "testuser");
+        assert_eq!(claims.role, "admin");
+    }
 }

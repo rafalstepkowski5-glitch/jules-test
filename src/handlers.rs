@@ -167,3 +167,90 @@ pub async fn protected_metrics(headers: HeaderMap) -> Result<String, StatusCode>
     encoder.encode(&metric_families, &mut buffer).unwrap();
     Ok(String::from_utf8(buffer).unwrap())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode, header, HeaderMap};
+    use tower::util::ServiceExt;
+    use std::env;
+    use uuid::Uuid;
+
+    async fn build_test_state() -> AppState {
+        env::set_var("JWT_SECRET", "abcdefghijklmnopqrstuvwxyz012345");
+        let temp_path = std::env::temp_dir().join(format!("webx_test_{}.db", Uuid::new_v4()));
+        let url = format!("sqlite://{}?mode=rwc", temp_path.display());
+        let pool = crate::db::init_db_with_url(&url, "admin-pass").await.expect("create test db");
+        AppState { pool }
+    }
+
+    fn find_set_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+        headers.get_all(header::SET_COOKIE).iter().find_map(|value| {
+            let value = value.to_str().ok()?;
+            value.split(';').find_map(|segment| {
+                let segment = segment.trim();
+                if segment.starts_with(&(name.to_owned() + "=")) {
+                    Some(segment[name.len() + 1..].to_string())
+                } else {
+                    None
+                }
+            })
+        })
+    }
+
+    #[tokio::test]
+    async fn login_api_sets_access_and_refresh_tokens() {
+        let state = build_test_state().await;
+        let app = axum::Router::new()
+            .route("/api/auth/login", axum::routing::post(login_api))
+            .with_state(state);
+
+        let body = serde_json::json!({"username":"admin","password":"admin-pass"}).to_string();
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/auth/login")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = app.oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let headers = response.headers();
+        assert!(find_set_cookie(headers, "access_token").is_some(), "access_token cookie missing");
+        assert!(find_set_cookie(headers, "refresh_token").is_some(), "refresh_token cookie missing");
+    }
+
+    #[tokio::test]
+    async fn refresh_api_returns_new_access_token() {
+        let state = build_test_state().await;
+        let app = axum::Router::new()
+            .route("/api/auth/login", axum::routing::post(login_api))
+            .route("/api/auth/refresh", axum::routing::post(refresh_api))
+            .with_state(state.clone());
+
+        let login_body = serde_json::json!({"username":"admin","password":"admin-pass"}).to_string();
+        let login_request = Request::builder()
+            .method("POST")
+            .uri("/api/auth/login")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(login_body))
+            .unwrap();
+
+        let login_response = app.clone().oneshot(login_request).await.expect("login response");
+        assert_eq!(login_response.status(), StatusCode::OK);
+        let refresh_token = find_set_cookie(login_response.headers(), "refresh_token").expect("refresh token cookie");
+
+        let refresh_request = Request::builder()
+            .method("POST")
+            .uri("/api/auth/refresh")
+            .header(header::COOKIE, format!("refresh_token={}", refresh_token))
+            .body(Body::empty())
+            .unwrap();
+
+        let refresh_response = app.oneshot(refresh_request).await.expect("refresh response");
+        assert_eq!(refresh_response.status(), StatusCode::OK);
+        let new_access = find_set_cookie(refresh_response.headers(), "access_token").expect("new access token cookie");
+        assert!(crate::auth::verify_jwt(&new_access).is_ok(), "new access token should be valid");
+    }
+}
