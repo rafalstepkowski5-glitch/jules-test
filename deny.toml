@@ -4,3 +4,21 @@ allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0"]
 [advisories]
 # no ignored advisories by default; any advisory will fail the check
 ignore = []
+
+[bans]
+# Block specific crates that are not allowed in the org
+crates = [
+	{ name = "openssl" },
+	{ name = "openssl-sys" },
+	{ name = "native-tls" }
+]
+
+[multiple-versions]
+# Deny multiple versions of the same crate being present
+deny = true
+
+[sources]
+# Control allowed sources. Leave allow lists empty to keep defaults conservative.
+allow-registry = ["crates-io"]
+allow-git = []
+allow-org = []
