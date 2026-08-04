@@ -1,35 +1,14 @@
 [licenses]
-# Allow commonly used permissive licenses and a small set of widely used exceptions
 allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0"]
 
 [advisories]
-# Treat advisories as failures by default; exceptions must be reviewed explicitly
-deny = true
-
-[bans.crates]
-# Example: add crates to block unconditionally
-# crates = ["some-unsafe-crate"]
-
-[sources]
-# Optionally restrict git-based sources; leave empty by default
-# blocked = ["git+https://github.com/suspicious/*"]
-
-[policies]
-# Fail the check if any ban/license/advisory is triggered
-fail_on_error = true
-[bans]
-deny = [
-  { name = "openssl" },
-  { name = "openssl-sys" },
-  { name = "native-tls" }
-]
-
-[licenses]
-allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Zlib", "Unicode-3.0"]
-
-[advisories]
-# no ignored advisories by default
+# no ignored advisories by default; any advisory will fail the check
 ignore = []
 
+[bans]
+# crates to block unconditionally
+crates = []
+
 [sources]
-# blocked = ["git+https://github.com/evil/*"]
+# blocked sources (git patterns) if needed
+sources = []
