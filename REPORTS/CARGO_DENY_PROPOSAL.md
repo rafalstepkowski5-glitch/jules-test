@@ -50,4 +50,18 @@ ignore = []
 
 ---
 
+## Implemented in-repo
+- Dodałem plik `deny.toml` w repozytorium z bazową polityką (allowlist licencji, wymuszanie advisories).
+- Możesz uruchomić lokalnie sprawdzenie z:
+
+```bash
+cargo deny check advisories licenses bans sources
+```
+
+Plik `deny.toml` znajduje się w repo root i zawiera przykładową konfigurację, którą zespół może rozszerzyć.
+
+Jeśli chcesz, mogę otworzyć PR z tą zmianą (zrobione) i załadować raport `cargo deny` w komentarzu PR.
+
+---
+
 Plik ten można zaktualizować pod kątem polityki organizacyjnej; jeśli chcesz, wdrożę `deny.toml` w repo i uruchomię `cargo deny` aby zebrać obecne odmowy i przygotować listę wyjątków.
