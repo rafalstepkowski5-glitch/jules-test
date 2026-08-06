@@ -20,20 +20,38 @@ pub struct UserRow {
 
 pub type DbPool = SqlitePool;
 
-pub async fn init_db_with_url(url: &str, admin_pass: &str) -> anyhow::Result<DbPool> {
+pub async fn init_db_with_url(
+    url: &str,
+    admin_pass: &str,
+    viewer_pass: &str,
+) -> anyhow::Result<DbPool> {
     let pool = SqlitePool::connect(url).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, cpu REAL, mem REAL, users REAL, rps REAL)").execute(&pool).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL)").execute(&pool).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS refresh_tokens (jti TEXT PRIMARY KEY, username TEXT NOT NULL, revoked BOOLEAN NOT NULL DEFAULT 0, expires_at TEXT NOT NULL)").execute(&pool).await?;
+
+    // Robust migration: Ensure the revoked column exists in case the table was created under an older schema
+    let _ = sqlx::query("ALTER TABLE refresh_tokens ADD COLUMN revoked BOOLEAN NOT NULL DEFAULT 0")
+        .execute(&pool)
+        .await;
+
     let cnt: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&pool)
         .await?;
     if cnt == 0 {
-        let hash = crate::auth::hash_password(admin_pass)?;
+        let admin_hash = crate::auth::hash_password(admin_pass)?;
         sqlx::query("INSERT INTO users (username,password_hash,role) VALUES (?,?,?)")
             .bind("admin")
-            .bind(hash)
+            .bind(admin_hash)
             .bind("admin")
+            .execute(&pool)
+            .await?;
+
+        let viewer_hash = crate::auth::hash_password(viewer_pass)?;
+        sqlx::query("INSERT INTO users (username,password_hash,role) VALUES (?,?,?)")
+            .bind("viewer")
+            .bind(viewer_hash)
+            .bind("viewer")
             .execute(&pool)
             .await?;
     }
@@ -44,7 +62,9 @@ pub async fn init_db() -> anyhow::Result<DbPool> {
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data.db?mode=rwc".into());
     let pass = std::env::var("ADMIN_PASS")
         .map_err(|_| anyhow::anyhow!("ADMIN_PASS must be set for initial admin creation"))?;
-    init_db_with_url(&url, &pass).await
+    let viewer_pass = std::env::var("VIEWER_PASS")
+        .map_err(|_| anyhow::anyhow!("VIEWER_PASS must be set for initial viewer creation"))?;
+    init_db_with_url(&url, &pass, &viewer_pass).await
 }
 
 pub async fn save_metric(
@@ -62,11 +82,16 @@ pub async fn save_metric(
         .bind(rps)
         .execute(pool)
         .await?;
-    sqlx::query(
-        "DELETE FROM metrics WHERE id NOT IN (SELECT id FROM metrics ORDER BY id DESC LIMIT 10000)",
-    )
-    .execute(pool)
-    .await?;
+
+    // Periodically (1% chance) sweep the table to keep only the last 10,000 records,
+    // avoiding a heavy DELETE subquery on every single metric write.
+    if rand::random::<f64>() < 0.01 {
+        sqlx::query(
+            "DELETE FROM metrics WHERE id NOT IN (SELECT id FROM metrics ORDER BY id DESC LIMIT 10000)",
+        )
+        .execute(pool)
+        .await?;
+    }
     Ok(())
 }
 
@@ -124,7 +149,7 @@ mod tests {
     async fn build_test_pool() -> DbPool {
         let temp_path = std::env::temp_dir().join(format!("webx_db_test_{}.db", Uuid::new_v4()));
         let url = format!("sqlite://{}?mode=rwc", temp_path.display());
-        init_db_with_url(&url, "admin-pass")
+        init_db_with_url(&url, "admin-pass", "viewer-pass")
             .await
             .expect("create test db")
     }

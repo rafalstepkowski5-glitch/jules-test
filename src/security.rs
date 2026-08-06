@@ -76,17 +76,74 @@ pub async fn csrf_middleware(req: Request<Body>, next: Next) -> Result<Response,
     Ok(next.run(req).await)
 }
 
+pub fn client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<std::net::IpAddr> {
+    if let Some(xff) = headers.get("x-forwarded-for") {
+        if let Ok(s) = xff.to_str() {
+            // Read from the right side of the list to prevent client-spoofing.
+            // Under a trusted reverse proxy configuration, the proxy appends the real client IP
+            // to the right side of the list.
+            if let Some(last_ip_str) = s.split(',').next_back() {
+                if let Ok(ip) = last_ip_str.trim().parse::<std::net::IpAddr>() {
+                    return Some(ip);
+                }
+            }
+        }
+    }
+    if let Some(xri) = headers.get("x-real-ip") {
+        if let Ok(s) = xri.to_str() {
+            if let Ok(ip) = s.trim().parse::<std::net::IpAddr>() {
+                return Some(ip);
+            }
+        }
+    }
+    None
+}
+
 pub async fn global_rate_limit_middleware(
     req: Request<Body>,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let ip = req
-        .extensions()
-        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-        .map(|c| c.0.ip().to_string())
-        .unwrap_or_else(|| "unknown".into());
+    let ip = client_ip_from_headers(req.headers())
+        .map(|ip| ip.to_string())
+        .unwrap_or_else(|| {
+            req.extensions()
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map(|c| c.0.ip().to_string())
+                .unwrap_or_else(|| "unknown".into())
+        });
     if !check_rate_limit(format!("global:{ip}"), 100, Duration::from_secs(60)) {
         return Err(StatusCode::TOO_MANY_REQUESTS);
     }
     Ok(next.run(req).await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::HeaderMap;
+    use std::net::IpAddr;
+
+    #[test]
+    fn test_client_ip_from_headers() {
+        // Test X-Forwarded-For parsing (last IP to avoid client spoofing)
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-forwarded-for",
+            "203.0.113.195, 70.41.3.18, 150.172.238.178"
+                .parse()
+                .unwrap(),
+        );
+        let ip = client_ip_from_headers(&headers).expect("should extract IP");
+        assert_eq!(ip, "150.172.238.178".parse::<IpAddr>().unwrap());
+
+        // Test X-Real-IP fallback
+        let mut headers = HeaderMap::new();
+        headers.insert("x-real-ip", "198.51.100.1".parse().unwrap());
+        let ip = client_ip_from_headers(&headers).expect("should extract IP");
+        assert_eq!(ip, "198.51.100.1".parse::<IpAddr>().unwrap());
+
+        // Test no IP headers
+        let headers = HeaderMap::new();
+        assert!(client_ip_from_headers(&headers).is_none());
+    }
 }
