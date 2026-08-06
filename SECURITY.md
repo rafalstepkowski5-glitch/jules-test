@@ -83,3 +83,41 @@ When changing this repository, preserve the following invariants:
 - do not add unauthenticated export routes
 - ensure new stateful APIs are protected by CSRF or same-site cookie rules
 - ensure any new DB access uses prepared parameter binding
+
+---
+
+## Operational Hardening & SRE Playbooks
+
+### 1. SQLCipher Integration Guidelines (Data at Rest Encryption)
+When compiling WebX Metrics Pro with SQLCipher, configure your secure key at startup:
+- **Variable:** `SQLCIPHER_KEY` must be loaded from an external Key Management Service (KMS) or secure environment secret.
+- **Pragma Initialization:**
+  ```rust
+  let pragma = format!("PRAGMA key = '{}';", env::var("SQLCIPHER_KEY")?);
+  sqlx::query(&pragma).execute(&pool).await?;
+  ```
+- **Backup Verification:** Ensure that your backup script uses `sqlite3` with `-cmd "PRAGMA key = '...'"` to decrypt the source database before dumping, or backup directly to a pre-encrypted backup file.
+
+### 2. JWT Secret & Public Key Rotation Playbook
+To rotate the `JWT_SECRET` key in production without disrupting active user sessions:
+1. **Transition Phase**: Deploy a version of the backend that validates signatures using *both* the old secret (fallback) and the new secret, while signing new tokens exclusively with the *new* secret.
+2. **Completion Phase**: Wait for the maximum refresh token lifetime (7 days) to expire. All active sessions will have gracefully transitioned to tokens signed with the new secret.
+3. **Deprecation Phase**: Remove the old secret from the list of allowed keys, making the rotation 100% complete.
+
+### 3. SRE Incident Response Runbooks
+
+#### Incident A: Unexpected Surge in Token Revocations (`webx_refresh_token_revocations_total`)
+* **Trigger Condition:** Rate of token revocations exceeds 10 per minute.
+* **Possible Cause:** Active token replay attack, session hijacking attempt, or user mass logout.
+* **Action Steps:**
+  1. Retrieve the IP addresses and user agents initiating the revoked refresh requests from the logs.
+  2. Block the suspect IPs at the Caddy ingress layer by adding an IP-block rule to `Caddyfile`.
+  3. Notify SRE and Security teams to audit the database audit log (`auth_audit`) for suspicious session patterns.
+
+#### Incident B: Rate Limiter Rejection Alert (`webx_limiter_rejections`)
+* **Trigger Condition:** Global rate limiter rejecting more than 5% of incoming traffic.
+* **Possible Cause:** Distributed Denial of Service (DDoS) attack or an aggressive scraper.
+* **Action Steps:**
+  1. Inspect Caddy access logs to isolate the most active Client IPs.
+  2. Confirm that the WAF rules in Caddy are correctly blocking automated user agents (e.g., `nuclei`, `sqlmap`).
+  3. If traffic is distributed, adjust Caddy's rate limiting/ingress throttle rules at the edge to absorb the load before it reaches the Rust application.
