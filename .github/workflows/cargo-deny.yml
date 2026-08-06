@@ -1,0 +1,54 @@
+name: Cargo Deny Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [ main ]
+
+jobs:
+  cargo-deny:
+    name: Run cargo-deny and post short report
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny --locked
+
+      - name: Run cargo-deny
+        id: run
+        run: |
+          cargo deny check advisories bans licenses sources 2>&1 | tee deny-output.txt || true
+          # Capture first 200 lines of output for a concise PR comment
+          echo "report<<EOF" >> $GITHUB_OUTPUT
+          head -n 200 deny-output.txt >> $GITHUB_OUTPUT
+          echo "\n(Truncated)" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post report as PR comment
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: peter-evans/create-or-update-comment@v4
+        continue-on-error: true
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            **cargo-deny report**
+
+            ```
+            ${{ steps.run.outputs.report }}
+            ```
+
+      - name: Upload full deny output
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-deny-output
+          path: deny-output.txt

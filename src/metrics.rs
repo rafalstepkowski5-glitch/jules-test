@@ -1,6 +1,6 @@
-use crate::db::{DbPool, save_metric};
-use tokio::time::{interval, Duration};
+use crate::db::{save_metric, DbPool};
 use rand::Rng;
+use tokio::time::{interval, Duration};
 
 pub fn init_metrics(pool: DbPool) {
     tokio::spawn(async move {
