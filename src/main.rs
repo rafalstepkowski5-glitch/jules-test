@@ -22,6 +22,7 @@ mod security;
 #[derive(Clone)]
 pub struct AppState {
     pub pool: db::DbPool,
+    pub prom_token: String,
 }
 
 #[tokio::main]
@@ -45,7 +46,13 @@ async fn main() -> anyhow::Result<()> {
     if admin_pass.trim().len() < 8 {
         anyhow::bail!("Zagrożenie bezpieczeństwa: ADMIN_PASS musi mieć co najmniej 8 znaków");
     }
-    let _prom_token = std::env::var("PROM_TOKEN").map_err(|_| {
+    // Require an explicit viewer password in environment for initial viewer creation
+    let viewer_pass = std::env::var("VIEWER_PASS")
+        .map_err(|_| anyhow::anyhow!("Krytyczny błąd: Zmienna środowiskowa VIEWER_PASS nie została ustawiona! Ustaw silne hasło dla widza (viewer)."))?;
+    if viewer_pass.trim().len() < 8 {
+        anyhow::bail!("Zagrożenie bezpieczeństwa: VIEWER_PASS musi mieć co najmniej 8 znaków");
+    }
+    let prom_token = std::env::var("PROM_TOKEN").map_err(|_| {
         anyhow::anyhow!("Krytyczny błąd: Zmienna środowiskowa PROM_TOKEN nie została ustawiona!")
     })?;
 
@@ -61,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
         CorsLayer::new().allow_origin(origin)
     };
 
-    let state = AppState { pool };
+    let state = AppState { pool, prom_token };
 
     let app = Router::new()
         .route("/", get(handlers::dashboard))
@@ -76,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/export/txt", post(export::to_txt))
         .route("/metrics", get(handlers::protected_metrics))
         .nest_service("/static", ServeDir::new("static")) // JS tutaj
-        .layer(RequestBodyLimitLayer::new(1 * 1024 * 1024)) // 1MB limit
+        .layer(RequestBodyLimitLayer::new(1024 * 1024)) // 1MB limit
         .layer(middleware::from_fn(security::security_headers_middleware))
         .layer(middleware::from_fn(security::csrf_middleware))
         .layer(middleware::from_fn(security::global_rate_limit_middleware))
@@ -92,6 +99,31 @@ async fn main() -> anyhow::Result<()> {
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal())
     .await?;
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }
