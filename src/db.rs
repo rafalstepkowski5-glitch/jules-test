@@ -20,12 +20,33 @@ pub struct UserRow {
 
 pub type DbPool = SqlitePool;
 
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::str::FromStr;
+
 pub async fn init_db_with_url(
     url: &str,
     admin_pass: &str,
     viewer_pass: &str,
 ) -> anyhow::Result<DbPool> {
-    let pool = SqlitePool::connect(url).await?;
+    let mut opts = SqliteConnectOptions::from_str(url)?;
+    opts = opts.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+
+    let pool = SqlitePoolOptions::new()
+        .after_connect(|conn, _meta| {
+            Box::pin(async move {
+                if let Ok(key) = std::env::var("SQLCIPHER_KEY") {
+                    if !key.is_empty() {
+                        sqlx::query(&format!("PRAGMA key = '{}';", key))
+                            .execute(conn)
+                            .await?;
+                    }
+                }
+                Ok(())
+            })
+        })
+        .connect_with(opts)
+        .await?;
+
     sqlx::query("CREATE TABLE IF NOT EXISTS metrics (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, cpu REAL, mem REAL, users REAL, rps REAL)").execute(&pool).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL)").execute(&pool).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS refresh_tokens (jti TEXT PRIMARY KEY, username TEXT NOT NULL, revoked BOOLEAN NOT NULL DEFAULT 0, expires_at TEXT NOT NULL)").execute(&pool).await?;
