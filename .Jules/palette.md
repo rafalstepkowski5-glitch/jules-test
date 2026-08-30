@@ -1,0 +1,3 @@
+## 2024-05-18 - Semantic Form Accessibility in Login
+**Learning:** The initial login UI relied on standalone `<input>` elements without associated `<label>`s and used a click listener on a button rather than a proper `<form>` element. This caused screen readers to have difficulty identifying inputs and prevented standard keyboard behaviors (like Enter to submit).
+**Action:** Always wrap inputs in a semantic `<form>` and bind submit actions to the `submit` event to gracefully support both keyboard accessibility and standard native behaviors. Always ensure `<input>` elements have a programmatic association to a `<label>`.
