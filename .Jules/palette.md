@@ -1,0 +1,3 @@
+## 2024-03-24 - Semantic forms for Enter-to-Submit and Screen Reader accessibility
+**Learning:** Found non-semantic inputs and a button used for the login page which lacks native Enter-key submission behavior and accessibility features like screen-reader-friendly labels and error announcements. Forms should always wrap input fields to provide these native behaviors and better support screen readers.
+**Action:** When creating forms, always wrap inputs in a `<form>` element, use `<label for="...">`, apply `autocomplete` hints, and add `aria-live="polite"` to dynamic error message elements.
