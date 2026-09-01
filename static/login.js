@@ -24,3 +24,8 @@ async function login(){
   }
 }
 document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('p').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') {
+    login();
+  }
+});
