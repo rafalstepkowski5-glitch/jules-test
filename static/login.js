@@ -1,4 +1,7 @@
-async function login(){
+async function login(event){
+  if (event) {
+    event.preventDefault();
+  }
   const btn = document.getElementById('loginBtn');
   const originalText = btn.innerHTML;
   btn.disabled = true;
@@ -23,4 +26,4 @@ async function login(){
     btn.innerHTML = originalText;
   }
 }
-document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('loginForm').addEventListener('submit', login);
