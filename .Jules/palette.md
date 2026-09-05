@@ -1,0 +1,3 @@
+## 2026-05-05 - Form wrapping for keyboard accessibility and semantics
+**Learning:** Native keyboard submission (e.g. pressing Enter to login) and proper screen reader interaction in frontend forms require wrapping interactive inputs within a `<form>` element and using a `<button type="submit">`. Relying solely on `click` listeners on buttons prevents standard form behaviors and damages accessibility.
+**Action:** When creating or fixing forms, always use `<form>` elements and listen for the `submit` event (with `event.preventDefault()`) on the form itself, instead of `click` events on a button. Ensure inputs have corresponding `<label>` tags.
