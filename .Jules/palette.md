@@ -1,0 +1,3 @@
+## 2024-05-19 - Form Accessibility for Login Input
+**Learning:** In order to ensure native browser keyboard accessibility (e.g., submitting a form by pressing 'Enter'), interactive inputs like username and password must be wrapped in a semantic `<form>` element. Relying purely on `click` listeners attached to a submit button fails to capture native form submission behaviors.
+**Action:** When creating or fixing interactive input forms, always wrap the inputs in a `<form>`, use a `<button type="submit">`, and attach the JavaScript event listener to the `submit` event of the form, ensuring to call `event.preventDefault()` to manage the submission via fetch/AJAX.
