@@ -1,0 +1,3 @@
+## 2024-03-21 - Semantic HTML Forms for Login
+**Learning:** In this application's login flow, the lack of semantic `<form>` wrappers around inputs prevented standard browser behaviors like pressing "Enter" to submit, and made screen reader navigation more difficult due to missing explicit `<label>` tags. Connecting input submission to button clicks via JavaScript click listeners breaks native accessibility features.
+**Action:** Always wrap logical input groupings (like login or data entry) in semantic `<form>` tags, add explicit `<label>` tags for all inputs, use `<button type="submit">`, and listen for the `submit` event (with `event.preventDefault()`) on the form rather than `click` events on the button.
