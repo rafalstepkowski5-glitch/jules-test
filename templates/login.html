@@ -6,9 +6,21 @@
 </head>
 <body>
     <h1>Login</h1>
-    <input id="u" type="text" placeholder="Username">
-    <input id="p" type="password" placeholder="Password">
-    <button id="loginBtn">Login</button>
+    <form id="loginForm">
+        <div>
+            <label for="u">Username <span aria-hidden="true" style="color: red;">*</span></label>
+            <br>
+            <input id="u" type="text" placeholder="Username" required>
+        </div>
+        <br>
+        <div>
+            <label for="p">Password <span aria-hidden="true" style="color: red;">*</span></label>
+            <br>
+            <input id="p" type="password" placeholder="Password" required>
+        </div>
+        <br>
+        <button id="loginBtn" type="submit">Login</button>
+    </form>
     <div id="msg"></div>
     <script src="/static/login.js"></script>
 </body>

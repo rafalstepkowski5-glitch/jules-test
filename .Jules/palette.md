@@ -1,0 +1,3 @@
+## 2026-09-09 - [Keyboard Accessibility for Forms]
+**Learning:** Frontend forms and interactive inputs must be wrapped in `<form>` elements and use `<button type="submit">`. JavaScript must listen for the form's `submit` event (using `event.preventDefault()`) rather than simple click listeners to preserve native keyboard submit behaviors (like pressing Enter) and improve screen reader accessibility.
+**Action:** Always wrap inputs in a form and bind submit events to the form itself, not click events on buttons.
