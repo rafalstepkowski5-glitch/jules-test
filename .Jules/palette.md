@@ -1,0 +1,3 @@
+## 2024-09-12 - [Semantic Form & Keyboard Accessibility]
+**Learning:** The login implementation relied heavily on raw elements (`<input>`, `<button>`) and simple Javascript click listeners, rather than using a proper semantic `<form>`. As a result, standard behavior like submitting the form via the `Enter` key failed completely. This is extremely detrimental for usability, especially keyboard-centric navigation, and breaks default accessibility features.
+**Action:** Always wrap input fields in `<form>` and handle the `submit` event with `event.preventDefault()` rather than intercepting `click` events on individual buttons. This guarantees the browser natively handles accessibility states, keyboard events, and default input semantics correctly.
